@@ -1,420 +1,339 @@
 <template>
-  <AppLayout>
-
-    <v-card v-if="activeAlarms.length" class="mb-6" color="red-darken-4" variant="tonal" rounded="xl">
-      <v-card-title class="text-error font-weight-bold d-flex align-center">
-        <v-icon start color="error">mdi-alert-circle</v-icon>
-        ALARMA DE TEMPERATURA ALTA ({{ activeAlarms.length }})
-      </v-card-title>
-      <v-divider />
-      <v-card-text>
-        <div v-for="order in activeAlarms" :key="order.id"
-          class="d-flex justify-space-between align-center mb-4 pa-3 rounded-lg"
-          style="background: rgba(255,0,0,0.05)">
-          <div>
-            <div class="font-weight-bold text-h6">Orden OC-{{ order.id }}</div>
-            <div class="text-body-1 text-grey-lighten-1">
-              Camión {{ order.truck }} —
-              <span class="text-error font-weight-bold text-h6">{{ formatTemp(order.temperature) }}</span>
-            </div>
-          </div>
-          <v-btn size="large" color="error" variant="flat" :loading="loadingAlarm === order.id" @click="acknowledgeAlarm(order.id)">
-            <v-icon start>mdi-check-circle</v-icon> RECONOCER ALARMA
-          </v-btn>
+  <v-container fluid class="dashboard-container fill-height align-start pa-6">
+    
+    <div class="d-flex flex-column flex-md-row justify-space-between align-md-center mb-8 animate__animated animate__fadeIn">
+      <div>
+        <div class="d-flex align-center">
+          <v-icon color="primary" class="mr-3" size="32">mdi-monitor-dashboard</v-icon>
+          <h1 class="text-h4 font-weight-black text-white tracking-wide">
+            MONITOR DE PLANTA <span class="text-primary">.</span>
+          </h1>
         </div>
-      </v-card-text>
-    </v-card>
-
-    <div class="d-flex align-center justify-space-between mb-4">
-      <div class="d-flex align-center">
-        <div class="text-h4 font-weight-bold text-primary">Órdenes de Carga</div>
-        <v-chip size="small" class="ml-4 font-weight-bold" color="primary">{{ filteredOrders.length }}</v-chip>
-        <v-btn icon size="small" variant="text" class="ml-2" @click="loadOrders" :loading="loading">
-          <v-icon>mdi-refresh</v-icon>
-        </v-btn>
+        <p class="text-grey-darken-1 mt-1 font-weight-medium ls-1">
+          SISTEMA DE GESTIÓN DE CARGA Y TELEMETRÍA
+        </p>
       </div>
-
-      <div class="d-flex align-center ga-4">
-        <v-btn color="primary" prepend-icon="mdi-plus" rounded size="large" class="text-none font-weight-bold elevation-4"
-          @click="showCreateModal = true">
-          Nueva Orden
-        </v-btn>
-
-        <v-btn-toggle v-model="filterStatus" mandatory rounded class="elevation-2 bg-surface-light">
-          <v-btn value="ALL" size="small">Todas</v-btn>
-          <v-btn value="1" size="small" color="warning">Pendientes</v-btn>
-          <v-btn value="2" size="small" color="info">Cargando</v-btn>
-          <v-btn value="3" size="small" color="grey">Cerradas</v-btn>
-          <v-btn value="4" size="small" color="success">Finalizadas</v-btn>
-        </v-btn-toggle>
-
-        <v-text-field v-model="search" density="compact" variant="solo-filled" hide-details rounded
-          placeholder="Buscar..." prepend-inner-icon="mdi-magnify" style="width: 250px" />
+      
+      <div class="d-flex align-center mt-4 mt-md-0">
+        <v-chip color="success" variant="outlined" class="mr-2 font-weight-bold">
+          <v-icon start size="small" class="blink-icon">mdi-circle</v-icon> ONLINE
+        </v-chip>
+        <span class="text-grey text-caption font-mono">{{ new Date().toLocaleDateString() }}</span>
       </div>
     </div>
 
-    <v-card elevation="3" rounded="xl" border>
-      <v-data-table :headers="headers" :items="filteredOrders" item-value="id" :loading="loading" hover>
+    <v-row class="mb-6">
+      
+      <v-col cols="12" sm="6" md="4">
+        <v-card class="industrial-card d-flex align-center pa-4" elevation="0">
+          <v-sheet 
+            color="rgba(255, 152, 0, 0.1)" 
+            class="rounded-lg pa-4 mr-4 d-flex align-center justify-center"
+            height="64" width="64"
+          >
+            <v-icon color="primary" size="32">mdi-tanker-truck</v-icon>
+          </v-sheet>
+          <div>
+            <div class="text-caption font-weight-bold text-grey text-uppercase ls-1">Cargas Activas</div>
+            <div class="text-h3 font-weight-black text-white mt-n1">{{ ordenesActivas }}</div>
+          </div>
+          <v-icon class="bg-icon" icon="mdi-progress-clock"></v-icon>
+        </v-card>
+      </v-col>
 
-        <template #item.status="{ item }">
-          <v-chip size="small" :color="statusColor(item.status)" class="font-weight-bold">
-            {{ statusText(item.status) }}
+      <v-col cols="12" sm="6" md="4">
+        <v-card class="industrial-card d-flex align-center pa-4" elevation="0">
+          <v-sheet 
+            color="rgba(76, 175, 80, 0.1)" 
+            class="rounded-lg pa-4 mr-4 d-flex align-center justify-center"
+            height="64" width="64"
+          >
+            <v-icon color="success" size="32">mdi-flag-checkered</v-icon>
+          </v-sheet>
+          <div>
+            <div class="text-caption font-weight-bold text-grey text-uppercase ls-1">Finalizadas Hoy</div>
+            <div class="text-h3 font-weight-black text-white mt-n1">{{ ordenesFinalizadas }}</div>
+          </div>
+          <v-icon class="bg-icon" icon="mdi-clipboard-check"></v-icon>
+        </v-card>
+      </v-col>
+
+      <v-col cols="12" sm="6" md="4">
+        <v-card 
+          class="industrial-card d-flex align-center pa-4" 
+          :class="{'alarm-active': alarmasActivas > 0}"
+          elevation="0"
+        >
+          <v-sheet 
+            :color="alarmasActivas > 0 ? 'rgba(255, 82, 82, 0.2)' : 'rgba(117, 117, 117, 0.1)'" 
+            class="rounded-lg pa-4 mr-4 d-flex align-center justify-center"
+            height="64" width="64"
+          >
+            <v-icon :color="alarmasActivas > 0 ? 'error' : 'grey'" size="32" :class="{'shake-animation': alarmasActivas > 0}">
+              mdi-alert-octagram
+            </v-icon>
+          </v-sheet>
+          <div>
+            <div class="text-caption font-weight-bold text-grey text-uppercase ls-1">Alertas Críticas</div>
+            <div class="text-h3 font-weight-black mt-n1" :class="alarmasActivas > 0 ? 'text-error' : 'text-white'">
+              {{ alarmasActivas }}
+            </div>
+          </div>
+        </v-card>
+      </v-col>
+    </v-row>
+
+    <v-expand-transition>
+      <div v-if="alarmasActivas > 0" class="mb-6 w-100">
+        <v-alert
+          color="#380000"
+          theme="dark"
+          border="start"
+          border-color="error"
+          elevation="4"
+          class="industrial-alert"
+        >
+          <template v-slot:prepend>
+            <v-icon color="error" size="large" class="mr-4">mdi-fire-alert</v-icon>
+          </template>
+          <div class="d-flex flex-column flex-sm-row justify-space-between align-center w-100">
+            <div>
+              <div class="text-h6 font-weight-bold text-red-lighten-1">INCIDENCIA TÉRMICA DETECTADA</div>
+              <div class="text-body-2 text-grey-lighten-2">
+                Se requiere revisión inmediata en <strong>{{ alarmasActivas }}</strong> orden(es).
+              </div>
+            </div>
+            <v-btn
+              color="error"
+              variant="flat"
+              class="mt-3 mt-sm-0 font-weight-bold"
+              prepend-icon="mdi-arrow-right"
+              @click="irAOrdenConAlarma"
+            >
+              GESTIONAR AHORA
+            </v-btn>
+          </div>
+        </v-alert>
+      </div>
+    </v-expand-transition>
+
+    <v-card class="industrial-card pa-0 flex-grow-1 d-flex flex-column" elevation="0">
+      
+      <div class="d-flex align-center justify-space-between px-4 py-3 border-b-thin">
+        <div class="text-overline font-weight-bold text-white ls-1">
+          <v-icon size="small" color="primary" class="mr-2">mdi-table-large</v-icon>
+          ÓRDENES RECIENTES
+        </div>
+        <v-btn 
+          icon 
+          variant="text" 
+          size="small" 
+          color="grey" 
+          @click="store.fetchOrders(false)"
+        >
+          <v-icon>mdi-refresh</v-icon>
+          <v-tooltip activator="parent" location="top">Actualizar Datos</v-tooltip>
+        </v-btn>
+      </div>
+
+      <v-data-table
+        :headers="headers"
+        :items="store.ordenesProcesadas"
+        :loading="store.loading && !store.ordenes.length"
+        class="industrial-table bg-transparent flex-grow-1"
+        hover
+        density="comfortable"
+      >
+        <template v-slot:item.numeroOrden="{ item }">
+          <span class="font-mono text-primary font-weight-bold">#{{ item.numeroOrden }}</span>
+        </template>
+
+        <template v-slot:item.estado="{ item }">
+          <v-chip
+            :color="getStatusColor(item._estadoNum)"
+            size="x-small"
+            variant="flat"
+            class="font-weight-bold text-uppercase ls-1"
+            label
+          >
+            {{ getStatusName(item._estadoNum) }}
           </v-chip>
         </template>
 
-        <template #item.preset="{ item }"> {{ formatKg(item.preset) }} </template>
-        <template #item.current="{ item }"> 
-            <span :class="item.status === 2 ? 'text-primary font-weight-bold' : ''">{{ formatKg(item.current) }}</span>
-        </template>
-        <template #item.temperature="{ item }">
-          <span :class="item.temperature > temperatureThreshold ? 'text-error font-weight-bold blinking' : ''">
-            {{ formatTemp(item.temperature) }}
-          </span>
-        </template>
-        <template #item.density="{ item }"> {{ item.density.toFixed(3) }} </template>
-        
-        <template #item.eta="{ item }">
-          <div v-if="item.status === 2 && item.flow > 0" class="d-flex align-center text-caption text-info font-weight-bold">
-             <v-icon size="small" start>mdi-clock-outline</v-icon> {{ calculateETA(item) }}
+        <template v-slot:item.progreso="{ item }">
+          <div style="min-width: 160px" class="py-2">
+            <div class="d-flex justify-space-between text-caption mb-1">
+              <span class="text-white font-weight-bold">{{ Math.round(item._progreso) }}%</span>
+              <span class="text-grey-darken-1 font-mono">{{ item.ultimaMasaAcumulada?.toFixed(0) }} kg</span>
+            </div>
+            <v-progress-linear
+              :model-value="item._progreso"
+              :color="getProgressColor(item._estadoNum, item._tieneAlarma)"
+              height="4"
+              rounded
+              :stream="item._estadoNum === 2"
+            ></v-progress-linear>
           </div>
-          <span v-else class="text-grey">-</span>
         </template>
 
-        <template #item.actions="{ item }">
-          
-          <v-btn v-if="item.status === 1" color="warning" size="small" variant="flat" @click="openWeighingModal(item, 'INITIAL')">
-            <v-icon start>mdi-scale-balance</v-icon> Pesaje Inicial
-          </v-btn>
+        <template v-slot:item.telemetria="{ item }">
+          <div v-if="item._estadoNum >= 2" class="d-flex align-center gap-3">
+            <v-chip size="small" :color="item._tieneAlarma ? 'error' : 'surface'" variant="flat" label class="font-mono">
+              <v-icon start size="x-small" :color="item._tieneAlarma ? 'white' : 'red'">mdi-thermometer</v-icon>
+              {{ item.ultimaTemperatura?.toFixed(1) || '--' }}°C
+            </v-chip>
+            <span class="text-caption text-grey font-mono">
+              DNS: {{ item.ultimaDensidad?.toFixed(3) || '--' }}
+            </span>
+          </div>
+          <span v-else class="text-grey-darken-2 text-caption">--</span>
+        </template>
 
-          <v-btn v-if="item.status === 2" color="error" size="small" variant="outlined" @click="closeOrder(item)">
-            <v-icon start>mdi-stop-circle-outline</v-icon> Cerrar Carga
+        <template v-slot:item.acciones="{ item }">
+          <v-btn
+            icon
+            variant="tonal"
+            size="small"
+            color="primary"
+            :to="{ name: 'detalle-orden', params: { id: item.numeroOrden } }"
+          >
+            <v-icon>mdi-chevron-right</v-icon>
           </v-btn>
-
-          <v-btn v-if="item.status === 3" color="indigo" size="small" variant="flat" @click="openWeighingModal(item, 'FINAL')">
-            <v-icon start>mdi-truck-check</v-icon> Pesaje Final
-          </v-btn>
-
-          <v-btn v-if="item.status === 4" color="success" size="small" variant="tonal" @click="openReconciliation(item)">
-            <v-icon start>mdi-file-document-outline</v-icon> Conciliación
-          </v-btn>
-
         </template>
       </v-data-table>
     </v-card>
 
-    <v-dialog v-model="showCreateModal" width="700" persistent>
-      <v-card class="rounded-xl">
-        <v-toolbar color="primary" title="Nueva Orden de Carga"></v-toolbar>
-        <v-card-text class="pa-4">
-          <v-form @submit.prevent="createOrder">
-            <v-row>
-              <v-col cols="12"><div class="text-subtitle-2 text-primary mb-1">Datos de Carga</div></v-col>
-              <v-col cols="6">
-                <v-text-field v-model.number="newOrder.preset" label="Preset (Kg)" type="number" variant="outlined" suffix="kg" color="primary"></v-text-field>
-              </v-col>
-              <v-col cols="6">
-                <v-text-field v-model="newOrder.producto.nombre" label="Producto" variant="outlined"></v-text-field>
-              </v-col>
-
-              <v-col cols="12"><v-divider class="mb-2"></v-divider><div class="text-subtitle-2 text-primary mb-1">Transporte</div></v-col>
-              <v-col cols="4">
-                <v-text-field v-model="newOrder.camion.patente" label="Patente Camión" variant="outlined" prepend-inner-icon="mdi-truck"></v-text-field>
-              </v-col>
-              <v-col cols="4">
-                <v-text-field v-model="newOrder.camion.descripcion" label="Desc. Camión" variant="outlined"></v-text-field>
-              </v-col>
-              
-              <v-col cols="4">
-                <v-text-field 
-                  v-model.number="capacidadInput" 
-                  label="Cisternado Total" 
-                  type="number" 
-                  variant="outlined">
-                </v-text-field>
-              </v-col>
-
-              <v-col cols="6">
-                 <v-text-field v-model="newOrder.chofer.dni" label="DNI Chofer" type="number" variant="outlined"></v-text-field>
-              </v-col>
-              <v-col cols="6">
-                 <v-text-field v-model="newOrder.chofer.nombre" label="Nombre Chofer" variant="outlined"></v-text-field>
-              </v-col>
-
-              <v-col cols="12"><v-divider class="mb-2"></v-divider><div class="text-subtitle-2 text-primary mb-1">Cliente</div></v-col>
-              <v-col cols="12">
-                 <v-text-field v-model="newOrder.cliente.razonSocial" label="Razón Social Cliente" variant="outlined" placeholder="Escriba para crear nuevo..."></v-text-field>
-              </v-col>
-            </v-row>
-            <div class="d-flex justify-end ga-2 mt-4">
-              <v-btn variant="text" @click="showCreateModal = false">Cancelar</v-btn>
-              <v-btn type="submit" color="primary" variant="flat" :loading="creating">Crear Orden</v-btn>
-            </div>
-          </v-form>
-        </v-card-text>
-      </v-card>
-    </v-dialog>
-
-    <v-dialog v-model="showWeighingModal" width="400">
-      <v-card class="rounded-xl pa-4">
-        <v-card-title class="text-center">
-          {{ weighingType === 'INITIAL' ? 'Registro de Tara' : 'Registro de Pesaje Final' }}
-        </v-card-title>
-        <v-card-text>
-          <div class="text-caption text-center mb-4">Orden OC-{{ selectedOrder?.id }}</div>
-          <v-text-field 
-            v-model.number="weighingValue" 
-            :label="weighingType === 'INITIAL' ? 'Tara (kg)' : 'Peso Total (kg)'" 
-            type="number" 
-            variant="outlined" 
-            autofocus
-            class="text-h5"
-          ></v-text-field>
-          <v-btn block color="primary" size="large" @click="submitWeighing" :loading="processingWeighing">
-            Confirmar Pesaje
-          </v-btn>
-        </v-card-text>
-      </v-card>
-    </v-dialog>
-
-    <v-dialog v-model="showReconciliation" width="600">
-      <v-card class="pa-6 rounded-xl">
-        <div class="d-flex justify-space-between mb-4">
-          <div class="text-h5 font-weight-bold text-success">Conciliación Final</div>
-          <v-btn icon variant="text" @click="showReconciliation = false"><v-icon>mdi-close</v-icon></v-btn>
-        </div>
-        
-        <v-table density="comfortable">
-          <tbody>
-            <tr><td class="text-grey">Orden</td><td class="font-weight-bold text-right">{{ reconciliationData?.numeroOrden }}</td></tr>
-            <tr><td class="text-grey">Producto</td><td class="font-weight-bold text-right">{{ reconciliationData?.producto }}</td></tr>
-            <tr class="bg-grey-lighten-4"><td class="font-weight-bold">Pesaje Inicial (Tara)</td><td class="text-right">{{ formatKg(reconciliationData?.pesajeInicial || 0) }}</td></tr>
-            <tr class="bg-grey-lighten-4"><td class="font-weight-bold">Pesaje Final</td><td class="text-right">{{ formatKg(reconciliationData?.pesajeFinal || 0) }}</td></tr>
-            <tr><td class="font-weight-bold text-primary">Neto por Balanza</td><td class="text-right font-weight-bold text-primary">{{ formatKg(reconciliationData?.netoPorBalanza || 0) }}</td></tr>
-            <tr><td class="text-grey">Producto Cargado (Caudalímetro)</td><td class="text-right">{{ formatKg(reconciliationData?.masaAcumulada || 0) }}</td></tr>
-            <tr>
-              <td class="font-weight-bold">Diferencia</td>
-              <td class="text-right font-weight-bold" :class="(reconciliationData?.diferenciaBalanzaCaudalimetro || 0) >= 0 ? 'text-success' : 'text-error'">
-                {{ formatKg(reconciliationData?.diferenciaBalanzaCaudalimetro || 0) }}
-              </td>
-            </tr>
-             <tr><td class="text-grey">Promedio Temp</td><td class="text-right">{{ formatTemp(reconciliationData?.promedioTemperatura || 0) }}</td></tr>
-             <tr><td class="text-grey">Promedio Densidad</td><td class="text-right">{{ (reconciliationData?.promedioDensidad || 0).toFixed(3) }}</td></tr>
-          </tbody>
-        </v-table>
-      </v-card>
-    </v-dialog>
-
-  </AppLayout>
+  </v-container>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue"
-import axios from "axios"
-import AppLayout from "../components/AppLayout.vue"
+import { computed, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useOrdersStore } from '../stores/orders';
 
-// --- CONFIGURACIÓN API ---
-const api = axios.create({ baseURL: 'http://localhost:8080/api/v1' })
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+const store = useOrdersStore();
+const router = useRouter();
 
-// --- ESTADO ---
-const orders = ref<any[]>([])
-const loading = ref(false)
-const search = ref("")
-const filterStatus = ref("ALL")
-const temperatureThreshold = ref(45)
+const headers: any = [
+  { title: 'ID', key: 'numeroOrden', align: 'start', width: '80px' },
+  { title: 'ESTADO', key: 'estado', width: '120px' },
+  { title: 'PATENTE', key: 'camion.patente' },
+  { title: 'PROGRESO', key: 'progreso', width: '220px' },
+  { title: 'TELEMETRÍA', key: 'telemetria' },
+  { title: 'ETA', key: '_eta', align: 'center' },
+  { title: '', key: 'acciones', sortable: false, align: 'end' },
+];
 
-// Variables para Modales
-const showCreateModal = ref(false)
-const creating = ref(false)
+const ordenesActivas = computed(() => store.ordenesProcesadas.filter(o => o._estadoNum === 2).length);
+const ordenesFinalizadas = computed(() => store.ordenesProcesadas.filter(o => o._estadoNum === 4).length);
+// @ts-ignore
+const alarmasActivas = computed(() => store.alarmasActivas.length);
 
-const showWeighingModal = ref(false)
-const weighingType = ref<'INITIAL' | 'FINAL'>('INITIAL')
-const weighingValue = ref<number | null>(null)
-const processingWeighing = ref(false)
-const selectedOrder = ref<any>(null)
+// Helpers
+const getStatusColor = (n: number) => {
+  const map = {1: 'warning', 2: 'info', 3: 'secondary', 4: 'success'};
+  // @ts-ignore
+  return map[n] || 'grey';
+};
+const getStatusName = (n: number) => {
+  const map = {1: 'ESPERA', 2: 'CARGANDO', 3: 'CERRADA', 4: 'FINALIZADA'};
+  // @ts-ignore
+  return map[n] || 'UNK';
+};
+const getProgressColor = (estado: number, alarma: boolean) => {
+  if (alarma) return 'error';
+  return estado === 4 ? 'success' : 'primary';
+};
 
-const showReconciliation = ref(false)
-const reconciliationData = ref<any>(null)
-const loadingAlarm = ref<string | null>(null)
+const irAOrdenConAlarma = () => {
+  // @ts-ignore
+  const orden = store.alarmasActivas[0];
+  if (orden) router.push({ name: 'detalle-orden', params: { id: orden.numeroOrden } });
+};
 
-// --- VARIABLES FORMULARIO ---
-// 1. Variable SUELTA para evitar errores con arrays vacíos
-const capacidadInput = ref(30000)
-
-// 2. Objeto base sin arrays anidados
-const newOrder = ref({
-  preset: 10000,
-  fechaCargaPrevista: new Date().toISOString(),
-  camion: { patente: '', descripcion: '' },
-  chofer: { dni: '', nombre: '' },
-  cliente: { razonSocial: '', contacto: 'Sin contacto' },
-  producto: { nombre: 'Gas Propano' }
-})
-
-const headers = [
-  { title: "ID", key: "id", align: "start" },
-  { title: "Camión", key: "truck" },
-  { title: "Estado", key: "status" },
-  { title: "Preset", key: "preset", align: "end" },
-  { title: "Carga Actual", key: "current", align: "end" },
-  { title: "Temp", key: "temperature", align: "end" },
-  { title: "Densidad", key: "density", align: "end" },
-  { title: "ETA", key: "eta", align: "end" },
-  { title: "Acciones", key: "actions", sortable: false, align: "center" },
-]
-
-// --- CARGA DE DATOS ---
-const loadOrders = async () => {
-  loading.value = true
-  try {
-    const res = await api.get('/ordenes')
-    orders.value = res.data.map((o: any) => ({
-      id: o.numeroOrden.toString(),
-      status: o.estado.id,
-      truck: o.camion ? o.camion.patente : 'S/D',
-      preset: o.preset,
-      current: o.masaAcumulada || 0,
-      temperature: o.temperaturaPromedio || 0,
-      density: o.densidadPromedio || 0,
-      flow: o.caudalPromedio || 0,
-      raw: o 
-    }))
-  } catch (e) { console.error(e) } 
-  finally { loading.value = false }
-}
-
-// --- CREAR ORDEN (CORREGIDO Y ROBUSTO) ---
-const createOrder = async () => {
-  creating.value = true
-  try {
-    // 1. Armamos el objeto final mezclando el form + la variable suelta
-    const ordenParaEnviar = {
-      ...newOrder.value,
-      camion: {
-        ...newOrder.value.camion,
-        cisternado: [ { capacidad: capacidadInput.value } ] // <--- ACÁ INYECTAMOS EL ARRAY
-      }
-    }
-
-    // 2. Enviamos
-    await api.post('/ordenes', ordenParaEnviar)
-    
-    showCreateModal.value = false
-    await loadOrders()
-    
-    // 3. Reseteamos todo limpio
-    newOrder.value = {
-      preset: 10000,
-      fechaCargaPrevista: new Date().toISOString(),
-      camion: { patente: '', descripcion: '' },
-      chofer: { dni: '', nombre: '' },
-      cliente: { razonSocial: '', contacto: '' },
-      producto: { nombre: 'Gas Propano' }
-    }
-    capacidadInput.value = 30000 // Reset de la variable suelta
-
-  } catch (e) { alert("Error al crear orden. Verificá los datos.") } 
-  finally { creating.value = false }
-}
-
-// --- FLUJO DE ESTADOS (STATE MACHINE) ---
-
-// Paso 1 -> 2
-const openWeighingModal = (item: any, type: 'INITIAL' | 'FINAL') => {
-  selectedOrder.value = item
-  weighingType.value = type
-  weighingValue.value = null
-  showWeighingModal.value = true
-}
-
-const submitWeighing = async () => {
-  if (!weighingValue.value || !selectedOrder.value) return
-  processingWeighing.value = true
-  try {
-    if (weighingType.value === 'INITIAL') {
-      await api.put(`/ordenes/${selectedOrder.value.id}/tara`, null, { params: { tara: weighingValue.value } })
-    } else {
-      await api.put(`/ordenes/${selectedOrder.value.id}/final-weighing`, null, { params: { pesajeFinal: weighingValue.value } })
-    }
-    showWeighingModal.value = false
-    await loadOrders()
-  } catch (e) { alert("Error al registrar pesaje") }
-  finally { processingWeighing.value = false }
-}
-
-// Paso 2 -> 3
-const closeOrder = async (item: any) => {
-  if (!confirm(`¿Seguro que querés cerrar la carga de la orden ${item.id}?`)) return
-  try {
-    await api.put(`/ordenes/${item.id}/close`)
-    await loadOrders()
-  } catch (e) { alert("Error al cerrar orden") }
-}
-
-// Paso 4
-const openReconciliation = async (item: any) => {
-  try {
-    const res = await api.get(`/ordenes/${item.id}/conciliacion`)
-    reconciliationData.value = res.data
-    showReconciliation.value = true
-  } catch (e) { alert("No se pudo obtener la conciliación") }
-}
-
-// --- ALARMAS ---
-const activeAlarms = computed(() => 
-  orders.value.filter(o => o.temperature > temperatureThreshold.value && o.status === 2)
-)
-
-const acknowledgeAlarm = async (orderId: string) => {
-  loadingAlarm.value = orderId
-  try {
-    await api.put(`/ordenes/${orderId}/aceptar-alarma`)
-    await loadOrders() 
-  } catch (e) { alert("Error al reconocer alarma") } 
-  finally { loadingAlarm.value = null }
-}
-
-// --- HELPERS UI ---
-const filteredOrders = computed(() => 
-  orders.value.filter(o => {
-    const matchesStatus = filterStatus.value === "ALL" || o.status.toString() === filterStatus.value
-    const matchesSearch = o.id.includes(search.value) || o.truck.toLowerCase().includes(search.value.toLowerCase())
-    return matchesStatus && matchesSearch
-  })
-)
-
-const calculateETA = (o: any) => {
-  if(!o.flow || o.flow <= 0) return "-"
-  const remaining = o.preset - o.current
-  const minutes = remaining / o.flow
-  return minutes.toFixed(0) + " min"
-}
-
-const statusText = (s: number) => {
-    switch(s) {
-        case 1: return "Pendiente Pesaje";
-        case 2: return "Cargando";
-        case 3: return "Cerrada";
-        case 4: return "Finalizada";
-        default: return "Desconocido";
-    }
-}
-const statusColor = (s: number) => s === 1 ? "warning" : s === 2 ? "info" : s === 3 ? "grey" : "success"
-const formatKg = (v: number) => v.toLocaleString("es-AR") + " kg"
-const formatTemp = (v: number) => v.toFixed(1) + " °C"
-
-onMounted(() => loadOrders())
+onMounted(() => store.startPolling());
+onUnmounted(() => store.stopPolling());
 </script>
 
 <style scoped>
-.blinking {
-  animation: blinker 1s linear infinite;
+/* --- ESTILO INDUSTRIAL GLOBAL --- */
+.dashboard-container {
+  background: #121212 !important; /* Fondo Negro Mate */
+  font-family: 'Roboto', sans-serif;
 }
-@keyframes blinker {
-  50% { opacity: 0; }
+
+.tracking-wide { letter-spacing: 2px; }
+.ls-1 { letter-spacing: 1px; }
+.font-mono { font-family: 'Roboto Mono', monospace; }
+
+/* --- TARJETAS INDUSTRIALES --- */
+.industrial-card {
+  background: #1E1E1E !important; /* Gris Oscuro Sólido */
+  border: 1px solid #333;
+  border-radius: 4px !important; /* Bordes menos redondeados (Industrial) */
+  position: relative;
+  overflow: hidden;
+}
+
+/* Icono de fondo decorativo */
+.bg-icon {
+  position: absolute;
+  right: -10px;
+  bottom: -10px;
+  font-size: 80px;
+  opacity: 0.05;
+  color: white;
+  transform: rotate(-15deg);
+}
+
+/* --- EFECTO DE ALARMA --- */
+.alarm-active {
+  border: 1px solid #ff5252 !important;
+  box-shadow: 0 0 15px rgba(255, 82, 82, 0.15);
+  animation: border-pulse 2s infinite;
+}
+
+@keyframes border-pulse {
+  0% { border-color: #ff5252; }
+  50% { border-color: #5c0000; }
+  100% { border-color: #ff5252; }
+}
+
+.shake-animation {
+  animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) infinite both;
+}
+
+@keyframes shake {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d(2px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+  40%, 60% { transform: translate3d(4px, 0, 0); }
+}
+
+/* --- TABLA INDUSTRIAL --- */
+.border-b-thin { border-bottom: 1px solid #333; }
+
+:deep(.industrial-table) {
+  color: #E0E0E0 !important;
+}
+:deep(.industrial-table th) {
+  color: #757575 !important;
+  font-weight: 700 !important;
+  font-size: 0.75rem !important;
+  letter-spacing: 1px;
+}
+:deep(.industrial-table tbody tr:hover) {
+  background-color: #2C2C2C !important;
+}
+
+/* Luz parpadeante para "Online" */
+.blink-icon {
+  animation: blink 2s infinite;
+  color: #4CAF50;
+}
+@keyframes blink {
+  0% { opacity: 1; }
+  50% { opacity: 0.3; }
+  100% { opacity: 1; }
 }
 </style>
